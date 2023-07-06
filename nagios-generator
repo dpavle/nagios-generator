@@ -20,12 +20,12 @@ import datetime
 import os
 import re
 import sys
-from optparse import OptionParser
+from argparse import ArgumentParser
 
 def main(argv):
     """Main generator for Nagios configurations."""
-    parser = OptionParser(description="Creates Nagios configuration files.")
-    parser.add_option(
+    parser = ArgumentParser(description="Creates Nagios configuration files.")
+    parser.add_argument(
         "-d",
         "--dest-file",
         dest="ofile",
@@ -33,7 +33,7 @@ def main(argv):
         default="/etc/nagios3/conf.d/auto",
         help="File to write the the generated output to.",
     )
-    parser.add_option(
+    parser.add_argument(
         "-c",
         "--config-file",
         dest="conf",
@@ -41,7 +41,7 @@ def main(argv):
         default="/etc/nagios3/auto/default.cfg",
         help="The file to use as input to the config generator.",
     )
-    parser.add_option(
+    parser.add_argument(
         "-s",
         "--sources-file",
         dest="source",
@@ -49,7 +49,8 @@ def main(argv):
         default="/etc/nagios3/auto/sources.cfg",
         help="The file that contains the sources referenced in the config file.",
     )
-    (options, args) = parser.parse_args(args=argv[1:])
+
+    options = parser.parse_args()
 
     if not os.path.isfile(options.conf):
         parser.error("Configuration file not found: %s" % options.conf)
