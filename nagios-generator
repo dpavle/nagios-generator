@@ -46,11 +46,11 @@ def main(argv):
         parser.error('Source file not found: %s' % options.source)
 
     src = parse_sources(options.source)
-    print src
+    print (src)
     if src is None:
         parser.error('Failed parsing source file.  Please check the formatting.')
     conf = parse_config(options.conf, src)
-    print conf
+    print (conf)
     if conf is None:
         parser.error('Failed parsing configuration file.  Please check the formatting.')
     write_output_file(src, conf, options.ofile)
@@ -60,7 +60,7 @@ def fatal(msg):
     '''Fatal error.  Print a message and then bail with an error code.
 
     '''
-    print msg
+    print (msg)
     sys.exit(1)
 
 
@@ -144,7 +144,7 @@ def parse_config(conf, sources):
                     groups[group][source] = args
                     continue
                 has_error = True
-                print 'Error with group %s, source %s.' % (group, source)
+                print ('Error with group %s, source %s.' % (group, source))
         else:  # Regular host.
             hostname, c = line.split(' ', 1)
             if hostname not in hosts:
@@ -156,7 +156,7 @@ def parse_config(conf, sources):
                 if sourceline.startswith('@'):
                     group = sourceline[1:]
                     if group not in groups:
-                        print 'Group %s not found for host %s.' % (group, hostname)
+                        print ('Group %s not found for host %s.' % (group, hostname))
                         has_error = True
                         continue
                     for source in groups[group]:
@@ -167,7 +167,7 @@ def parse_config(conf, sources):
                     hosts[hostname].append((source, [hostname]+args))
                     continue
                 has_error = True
-                print 'Error with host %s, source %s.' % (hostname, source)
+                print ('Error with host %s, source %s.' % (hostname, source))
 
     # If any error, we don't want to actually continue and do anything.
     return None if has_error else hosts
@@ -199,7 +199,7 @@ def parse_source_line(sl):
             args[-1] += char
             spaced = False
     if not args[0].startswith('$'):
-        print 'Source configuration [%s] invalid.' % sl
+        print ('Source configuration [%s] invalid.' % sl)
         return None, None
     return args[0][1:], args[1:]
 
