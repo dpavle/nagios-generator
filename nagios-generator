@@ -50,21 +50,22 @@ def main(argv):
         help="The file that contains the sources referenced in the config file.",
     )
 
-    options = parser.parse_args()
-
+    options, unknown = parser.parse_known_args()
+    options.conf = "example.conf"
+    options.source = "sources.conf"
     if not os.path.isfile(options.conf):
-        parser.error("Configuration file not found: %s" % options.conf)
+        parser.error(f"Configuration file not found: {options.conf}")
     if not os.path.isfile(options.source):
-        parser.error("Source file not found: %s" % options.source)
+        parser.error(f"Source file not found: {options.source}")
 
     src = parse_sources(options.source)
-    print(src)
     if src is None:
         parser.error("Failed parsing source file. Please check the formatting.")
+    
     conf = parse_config(options.conf, src)
-    print(conf)
     if conf is None:
         parser.error("Failed parsing configuration file. Please check the formatting.")
+
     write_output_file(src, conf, options.ofile)
 
 
@@ -93,24 +94,24 @@ def parse_sources(src):
 
     """
     try:
-        sf = open(src, "r")
-        lines = sf.readlines()
-        sf.close()
+        with open(src, "r", encoding="utf-8") as source_file:
+            lines = source_file.readlines()
     except IOError:
         return None
 
-    cursource = None
+    current_source = None
     sources = {}
+
     for line in lines:
         line = line.rstrip()
         if line.startswith("$"):
-            cursource = line[1:]
-            if cursource not in sources:
-                sources[cursource] = ""
+            current_source = line[1:]
+            if current_source not in sources:
+                sources[current_source] = ""
             continue
-        if cursource is None:
+        if current_source is None:
             continue
-        sources[cursource] += line + "\n"
+        sources[current_source] += line + "\n"
     return sources
 
 
@@ -128,45 +129,46 @@ def parse_config(conf, sources):
 
     """
     try:
-        sf = open(conf, "r")
-        lines = sf.readlines()
-        sf.close()
+        with open(conf, "r", encoding="utf-8") as config_file:
+            lines = config_file.readlines()
     except IOError:
         return None
 
     groups = {}
     hosts = {}
     has_error = False
+
     for line in lines:
         line = line.strip()
         if len(line) <= 0 or line.startswith("#"):
             continue
         if line.startswith("@"):
-            group, c = line[1:].split(" ", 1)
-            contents = [j.strip() for j in c.split(",")]
+            group, command = line[1:].split(" ", 1)
+            contents = [i.strip() for i in command.split(",")]
             if group not in groups:
                 groups[group] = {}
 
             # Validate that this item exists as a source.
-            for sourceline in contents:
-                source, args = parse_source_line(sourceline)
+            for source_line in contents:
+                source, args = parse_source_line(source_line)
                 if source in sources:
                     groups[group][source] = args
                     continue
                 has_error = True
-                print("Error with group %s, source %s." % (group, source))
+                print(f"Error with group {group}, source {source}.")
+        
         else:  # Regular host.
-            hostname, c = line.split(" ", 1)
+            hostname, command = line.split(" ", 1)
             if hostname not in hosts:
                 hosts[hostname] = []
-            contents = [j.strip() for j in c.split(",")]
+            contents = [i.strip() for i in command.split(",")]
 
             # Now validate the sources and put them on the host.
-            for sourceline in contents:
-                if sourceline.startswith("@"):
-                    group = sourceline[1:]
+            for source_line in contents:
+                if source_line.startswith("@"):
+                    group = source_line[1:]
                     if group not in groups:
-                        print("Group %s not found for host %s." % (group, hostname))
+                        print(f"Group {group} not found for host {hostname}.")
                         has_error = True
                         continue
                     for source in groups[group]:
@@ -174,18 +176,19 @@ def parse_config(conf, sources):
                             (source, [hostname] + groups[group][source])
                         )
                     continue
-                source, args = parse_source_line(sourceline)
+                source, args = parse_source_line(source_line)
+
                 if source in sources:
                     hosts[hostname].append((source, [hostname] + args))
                     continue
                 has_error = True
-                print("Error with host %s, source %s." % (hostname, source))
+                print(f"Error with host {hostname}, source {source}.")
 
     # If any error, we don't want to actually continue and do anything.
     return None if has_error else hosts
 
 
-def parse_source_line(sl):
+def parse_source_line(source_line):
     """Given a source line like '$redis arg1 'arg2 is a string' arg3', parse it
     and return the source name and the arguments in a list.  We only support
     double quotes and spaces.  No tabs or single quotes.
@@ -194,7 +197,8 @@ def parse_source_line(sl):
     quoted = False
     spaced = True
     args = []
-    for char in sl:
+
+    for char in source_line:
         if char == '"':
             if spaced and not quoted:
                 args.append("")
@@ -210,34 +214,32 @@ def parse_source_line(sl):
                 args.append("")
             args[-1] += char
             spaced = False
+
     if not args[0].startswith("$"):
-        print("Source configuration [%s] invalid." % sl)
+        print(f"Source configuration [{source_line}] invalid.")
         return None, None
     return args[0][1:], args[1:]
 
 
 def write_output_file(src, conf, ofile):
-    """Write stuff.  We actually write everything to one large automatic file."""
+    """Write stuff. We actually write everything to one large automatic file."""
     try:
-        f = open(ofile, "w")
-        f.write(
-            "# automatically generated by gen-nagios-conf at %s\n"
-            % str(datetime.datetime.now())
-        )
-        f.write("# DO NOT EDIT THIS MANUALLY, YOUR CHANGES WILL BE LOST\n\n")
+        with open(ofile, "w", encoding="utf-8") as output:
+            output.write(
+                f"# automatically generated by gen-nagios-conf at {str(datetime.datetime.now())}\n"
+            )
+            output.write("# DO NOT EDIT THIS MANUALLY, YOUR CHANGES WILL BE LOST\n\n")
+
+            for hostname in sorted(conf):
+                for pair in conf[hostname]:
+                    source, args = pair
+                    text = src[source]
+                    for i in range(0, len(args)):
+                        text = re.sub(r"\$%d" % (i + 1), args[i], text)
+                    output.write(text + "\n")
+
     except IOError:
         fatal("Failed to open output file.")
-
-    for hostname in sorted(conf):
-        for pair in conf[hostname]:
-            source, args = pair
-            text = src[source]
-            for i in range(0, len(args)):
-                text = re.sub(r"\$%d" % (i + 1), args[i], text)
-            f.write(text + "\n")
-
-    f.close()
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv))
